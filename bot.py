@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
@@ -15,16 +14,6 @@ MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://kr4785543:1234567890@cluster0.
 mongo_client = MongoClient(MONGO_URI)
 mongo_db = mongo_client['bike_rental']
 bikes_collection = mongo_db['bikes']
-
-# SQLAlchemy setup (needed only for username lookups)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///bikerental.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-# Minimal User model for username lookups
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
 
 @app.route('/api/bikes/search', methods=['GET'])
 def search_bikes():
@@ -76,13 +65,8 @@ def search_bikes():
         # Format results
         results = []
         for bike in bikes:
-            try:
-                username = User.query.get(bike['owner_id']).username
-            except:
-                username = "Unknown"  # Fallback if user not found
-                
             results.append({
-                'id': bike['sql_id'],
+                'id': bike.get('sql_id', None),
                 'name': bike['name'],
                 'model': bike['model'],
                 'year': bike['year'],
@@ -93,7 +77,7 @@ def search_bikes():
                 'is_available': bike['is_available'],
                 'owner': {
                     'id': bike['owner_id'],
-                    'username': username
+                    'username': bike.get('owner_username', 'Unknown')
                 },
                 'images': bike.get('images', []),
                 'metadata': bike.get('metadata', {
@@ -116,6 +100,4 @@ def search_bikes():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5002))
-    with app.app_context():
-        db.create_all()  # Create SQLite database and tables
     app.run(host='0.0.0.0', port=port)
